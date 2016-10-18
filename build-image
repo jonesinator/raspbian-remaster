@@ -1,0 +1,54 @@
+#!/bin/bash -e
+# This script takes a folder bootstrapped with Rasbian and turns it into an
+# image file that can be transferred to an SD card and booted.
+
+source $(dirname ${BASH_SOURCE})/build-common
+IMAGE=${1:-raspbian.img}
+
+# Clean up some things to save space and unmount the image.
+chroot_cmd apt-get clean
+rm -rf ${CHROOT}/{var/lib/apt/lists/*,tmp/*,var/tmp/*}
+umount -l ${CHROOT}/{proc,sys,dev/pts,dev}
+rm -rf ${CHROOT}/{proc,sys,dev}/*
+
+# Determine the size of boot and root, then calculate parition sizes based on
+# those. We're using ext4 for the root partition. It reserves some space by
+# default for the root user and there's other storage overhead for inodes, etc.
+# We need to add in some overhead, and empirically 7% seems to work. Just double
+# the size of the boot partition for updates.
+BOOTSIZE=$(du -s -B M ${CHROOT}/boot | cut -f1 | tr -d 'M')
+BOOTSIZE=$((BOOTSIZE*2))
+ROOTSIZE=$(du -s -B M --exclude boot ${CHROOT} | cut -f1 | tr -d 'M')
+ROOTSIZE=$((ROOTSIZE*107/100))
+
+# Create the image file with partitions and filesystems on a loopback device.
+# Docker does not get the loop partitions in /dev automatically, so we need to
+# mknod them here.
+BUILD=$(mktemp -d --suffix=_BUILD)
+fallocate -l $((BOOTSIZE+ROOTSIZE))M ${BUILD}/${IMAGE}
+LOOP=$(losetup -f --show ${BUILD}/${IMAGE})
+LOOPTMP="/tmp/$(basename ${LOOP})"
+parted --script ${LOOP} -- mktable msdos
+parted --script ${LOOP} -- mkpart primary fat32 1MiB ${BOOTSIZE}MiB
+parted --script ${LOOP} -- mkpart primary ext4 ${BOOTSIZE}MiB -1s
+for p in 1 2; do
+  MAJ=$(cat /proc/partitions | grep $(basename ${LOOP})p${p} | awk '{print $1}')
+  MIN=$(cat /proc/partitions | grep $(basename ${LOOP})p${p} | awk '{print $2}')
+  mknod ${LOOPTMP}p${p} b ${MAJ} ${MIN}
+done
+mkfs.vfat ${LOOPTMP}p1
+mkfs.ext4 ${LOOPTMP}p2
+
+# Mount the partitions then copy the filesystem to the image file.
+mkdir ${BUILD}/root
+mount ${LOOPTMP}p2 ${BUILD}/root
+mkdir ${BUILD}/root/boot
+mount ${LOOPTMP}p1 ${BUILD}/root/boot
+rsync -av --progress ${CHROOT}/ ${BUILD}/root/
+
+# Move the completed image to the publish directory and complete cleanup.
+mkdir -p ${PUBLISH}
+mv ${BUILD}/${IMAGE} ${PUBLISH}
+umount -R ${BUILD}/root
+rm -rf ${BUILD} ${LOOPTMP}p1 ${LOOPTMP}p2
+losetup -d ${LOOP}
