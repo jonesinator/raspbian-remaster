@@ -1,0 +1,5 @@
+* text=auto
+
+# Since the build scripts are run in a Linux environment even when the
+# repository is checked out on Windows, we force them to use *nix endings.
+build-* text eol=lf
