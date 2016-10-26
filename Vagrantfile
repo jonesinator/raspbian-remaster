@@ -6,7 +6,7 @@ $envscript = <<SCRIPT
 SCRIPT
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "bento/debian-8.6"
+  config.vm.box = "debian/jessie64"
   config.vm.provision "shell", inline: $envscript
   config.vm.provision "shell", inline: "/vagrant/build-full"
 end
