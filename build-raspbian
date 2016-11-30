@@ -56,7 +56,7 @@ EOF
 chroot_cmd apt-get update
 chroot_cmd apt-get dist-upgrade -y
 chroot_cmd apt-get install -y --no-install-recommends \
-  e2fsprogs fake-hwclock parted raspberrypi-bootloader \
+  e2fsprogs fake-hwclock parted raspberrypi-bootloader raspberrypi-kernel \
 
 # Script that will resize the root partition and filesystem on first boot.
 cat <<- 'EOF' > ${CHROOT}/resize_root
