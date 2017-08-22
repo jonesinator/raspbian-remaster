@@ -6,7 +6,7 @@
 # network won't come up, so this really represents the bare minimum.
 
 source $(dirname ${BASH_SOURCE})/build-common
-RELEASE="jessie"
+RELEASE="stretch"
 RASPBIAN_REPO_URL="http://mirrordirector.raspbian.org/raspbian/"
 RASPBIAN_KEY_URL="http://mirrordirector.raspbian.org/raspbian.public.key"
 RASPBIAN_KEY_SIGNATURE="0xA0DA38D0D76E8B5D638872819165938D90FDDD2E"
