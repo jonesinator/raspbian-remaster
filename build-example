@@ -9,11 +9,11 @@
 # after re-customizing. That could be useful for creating a cluster of
 # raspberry pis each with hardcoded static IPs.
 
-# shellcheck disable=1090
-source "$(dirname "${BASH_SOURCE[0]}")/build-common"
-"$(dirname "${BASH_SOURCE[0]}")"/build-raspbian
+CHROOT="${RASPBIAN_REMASTER_CHROOT:-./raspbian}"
+IMAGE="${RASPBIAN_REMASTER_IMAGE:-./images/raspbian.img}"
+"$(dirname "${BASH_SOURCE[0]}")"/build-raspbian "${CHROOT}"
 
-chroot_cmd apt-get install -y dhcpcd5 openresolv vim
+chroot "${CHROOT}" apt-get install -y dhcpcd5 openresolv vim
 
 # Set eth0 to use DHCP.
 cat << EOF > "${CHROOT}/etc/network/interfaces.d/eth0"
@@ -23,9 +23,6 @@ EOF
 
 # Set the root password. This is obviously not secure. Real customization
 # scripts should override this, or use 
-chroot_cmd /bin/bash -c "echo \"root:raspberry\" | chpasswd"
+chroot "${CHROOT}" /bin/bash -c "echo \"root:raspberry\" | chpasswd"
 
-# Enable ssh.
-touch "${CHROOT}"/boot/ssh
-
-"$(dirname "${BASH_SOURCE[0]}")"/build-image
+"$(dirname "${BASH_SOURCE[0]}")"/build-image "${CHROOT}" "${IMAGE}"
