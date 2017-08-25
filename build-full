@@ -2,20 +2,21 @@
 # This script is an example script showing how a full Raspbian image can be
 # built and customized end-to-end. This script adds just a few things to the
 # minimal install built by the build-raspbian script. It brings up the ethernet
-# port with DHCP, allows domain names to be resolved,  and installs a text
+# port with DHCP, allows domain names to be resolved, and installs a text
 # editor. It is expected that the end-user of this library will modify this
-# script to create custom images.  It is even possible to make multiple images
+# script to create custom images. It is even possible to make multiple images
 # by calling the build-image script multiple times with different image names
 # after re-customizing. That could be useful for creating a cluster of
 # raspberry pis each with hardcoded static IPs.
 
-source $(dirname ${BASH_SOURCE})/build-common
-$(dirname ${BASH_SOURCE})/build-raspbian
+# shellcheck disable=1090
+source "$(dirname "${BASH_SOURCE[0]}")/build-common"
+"$(dirname "${BASH_SOURCE[0]}")"/build-raspbian
 
 chroot_cmd apt-get install -y dhcpcd5 openresolv vim
 
 # Set eth0 to use DHCP.
-cat <<- 'EOF' > ${CHROOT}/etc/network/interfaces.d/eth0
+cat << EOF > "${CHROOT}/etc/network/interfaces.d/eth0"
 allow-hotplug eth0
 iface eth0 inet dhcp
 EOF
@@ -24,4 +25,7 @@ EOF
 # scripts should override this, or use 
 chroot_cmd /bin/bash -c "echo \"root:raspberry\" | chpasswd"
 
-$(dirname ${BASH_SOURCE})/build-image myimage.img
+# Enable ssh.
+touch "${CHROOT}"/boot/ssh
+
+"$(dirname "${BASH_SOURCE[0]}")"/build-image

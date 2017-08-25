@@ -5,7 +5,8 @@
 # partition to fill up the SD card, but you won't be able to log in and the
 # network won't come up, so this really represents the bare minimum.
 
-source $(dirname ${BASH_SOURCE})/build-common
+# shellcheck disable=1090
+source "$(dirname "${BASH_SOURCE[0]}")/build-common"
 RELEASE="stretch"
 RASPBIAN_REPO_URL="http://mirrordirector.raspbian.org/raspbian/"
 RASPBIAN_KEY_URL="http://mirrordirector.raspbian.org/raspbian.public.key"
@@ -22,25 +23,29 @@ apt-get install -y --no-install-recommends \
 
 # Download, validate, and import the Raspbian and Raspberry Pi keys.
 GPGDIR=$(mktemp -d --suffix=_GPG)
-chmod 600 ${GPGDIR}
-for key in RASPBIAN_KEY RASPBERRYPI_KEY; do
-  curl --silent -o ${GPGDIR}/${key}.key $(eval "echo \${${key}_URL}")
-  gpg -q --homedir ${GPGDIR} --import ${GPGDIR}/${key}.key
-  gpg --homedir ${GPGDIR} -k $(eval "echo \${${key}_SIGNATURE}")
-  apt-key add ${GPGDIR}/${key}.key
-done
+chmod 600 "${GPGDIR}"
+
+curl --silent -o "${GPGDIR}/RASPBIAN_KEY.key" "${RASPBIAN_KEY_URL}"
+gpg -q --homedir "${GPGDIR}" --import "${GPGDIR}/RASPBIAN_KEY.key"
+gpg --homedir "${GPGDIR}" -k "${RASPBIAN_KEY_SIGNATURE}"
+apt-key add "${GPGDIR}/RASPBIAN_KEY.key"
+
+curl --silent -o "${GPGDIR}/RASPBERRYPI_KEY.key" "${RASPBERRYPI_KEY_URL}"
+gpg -q --homedir "${GPGDIR}" --import "${GPGDIR}/RASPBERRYPI_KEY.key"
+gpg --homedir "${GPGDIR}" -k "${RASPBERRYPI_KEY_SIGNATURE}"
+apt-key add "${GPGDIR}/RASPBERRYPI_KEY.key"
 
 # Bootstrap Raspbian.
-mkdir -p ${CHROOT}
+mkdir -p "${CHROOT}"
 qemu-debootstrap --arch armhf --keyring /etc/apt/trusted.gpg \
-  --include="locales" ${RELEASE} ${CHROOT} ${RASPBIAN_REPO_URL}
+  --include="locales" "${RELEASE}" "${CHROOT}" "${RASPBIAN_REPO_URL}"
 
 # Add the gpg keys we retreived above into the image.
-chroot_cmd apt-key add <(cat ${GPGDIR}/*.key)
-rm -rf ${GPGDIR}
+chroot_cmd apt-key add <(cat "${GPGDIR}"/*.key)
+rm -rf "${GPGDIR}"
 
 # Set up the locale.
-echo 'en_US.UTF-8 UTF-8' >> ${CHROOT}/etc/locale.gen
+echo 'en_US.UTF-8 UTF-8' >> "${CHROOT}/etc/locale.gen"
 chroot_cmd locale-gen
 chroot_cmd sh -e - << EOF
 echo 'locales locales/default_environment_locale select en_US.UTF-8' | \
@@ -49,7 +54,7 @@ EOF
 chroot_cmd dpkg-reconfigure -f noninteractive locales
 
 # Configure apt, update Raspbian, and install needed packages.
-cat <<- EOF > ${CHROOT}/etc/apt/sources.list
+cat << EOF > "${CHROOT}/etc/apt/sources.list"
 deb ${RASPBIAN_REPO_URL} ${RELEASE} main contrib non-free rpi
 deb ${RASPBERRYPI_REPO_URL} ${RELEASE} main ui
 EOF
@@ -59,7 +64,7 @@ chroot_cmd apt-get install -y --no-install-recommends \
   e2fsprogs fake-hwclock parted raspberrypi-bootloader raspberrypi-kernel \
 
 # Script that will resize the root partition and filesystem on first boot.
-cat <<- 'EOF' > ${CHROOT}/resize_root
+cat << EOF > "${CHROOT}/resize_root"
 #!/bin/sh
 mount -t proc proc /proc
 mount -t sysfs sys /sys
@@ -72,17 +77,17 @@ rm /resize_root
 sync
 echo b > /proc/sysrq-trigger
 EOF
-chmod +x ${CHROOT}/resize_root
+chmod +x "${CHROOT}/resize_root"
 
 # Standard Raspberry Pi command line except on first boot we invoke the resize
 # script. The resize script will remove "quiet init=/resize_root" when it
 # completes so the second boot should be normal.
 echo "dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 \
 root=/dev/mmcblk0p2 rootfstype=ext4 elevator=deadline fsck.repair=yes \
-rootwait quiet init=/resize_root" > ${CHROOT}/boot/cmdline.txt
+rootwait quiet init=/resize_root" > "${CHROOT}/boot/cmdline.txt"
 
 # Standard Raspberry Pi fstab.
-cat <<- 'EOF' > ${CHROOT}/etc/fstab
+cat << EOF > "${CHROOT}/etc/fstab"
 proc            /proc proc defaults         0 0
 /dev/mmcblk0p1  /boot vfat defaults         0 0
 /dev/mmcblk0p2  /     ext4 defaults,noatime 0 1
